@@ -5,7 +5,7 @@ from .views import *
 
 urlpatterns = [
     path('', root),
-    path('pipe-network', pipe_network),
+    path('pipe-network', pipe_network_view),
 ]
 
 

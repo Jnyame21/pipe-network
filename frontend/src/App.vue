@@ -5,7 +5,7 @@ import {RouterView } from 'vue-router'
 
 <template>
   <header class="flex-all">
-    <h2>Pipe Network Analysis</h2>
+    <h2>PIPE NETWORK ANALYSIS</h2>
   </header>
   <main class="flex-all">
     <RouterView />

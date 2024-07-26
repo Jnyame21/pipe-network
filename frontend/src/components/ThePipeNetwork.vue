@@ -10,7 +10,6 @@ const testLoading = ref(null)
 const results = ref(false)
 const kLoops = ref([])
 const errorTolerance = ref(null)
-const maxIter = ref(null)
 const calculatedResults = ref(null)
 const darcyLoops = ref([])
 const hazenLoops = ref([])
@@ -252,12 +251,8 @@ const pipeNetwork = (type)=>{
     throw new Error();
   }
 
-  if (maxIter.value && Math.round(maxIter.value) <= 0){
-    formErrorMessage.value = "The maximum number of iterations must be integer and greater than zero(0)"
-    clearMessage()
-    throw new Error();
-  }else if (errorTolerance.value && errorTolerance.value <= 0){
-    formErrorMessage.value = "The allowable error tolerance cannot be zero(0)"
+  if (errorTolerance.value && errorTolerance.value <= 0){
+    formErrorMessage.value = "The allowable error tolerance cannot be zero(0) or negative"
     clearMessage()
     throw new Error();
   }
@@ -272,7 +267,6 @@ const pipeNetwork = (type)=>{
   formData.append('equation', equationType.value)
   formData.append('K', typeSelected.value)
   errorTolerance.value ? formData.append('error', errorTolerance.value) : formData.append('error', 'false')
-  maxIter.value ? formData.append('maxIter', maxIter.value) : formData.append('maxIter', 'false')
   typeSelected.value === 'k' ? formData.append('loops', JSON.stringify(kLoops.value)) : null
   typeSelected.value === 'nk' && equationType.value === 'darcy' ? formData.append('loops', JSON.stringify(darcyLoops.value)) : null
   typeSelected.value === 'nk' && equationType.value === 'hazen' ? formData.append('loops', JSON.stringify(hazenLoops.value)) : null
@@ -306,17 +300,22 @@ const pipeNetwork = (type)=>{
 
   defaultAxiosInstance.post('pipe-network', formData)
   .then(response =>{
-    calculatedResults.value = response.data['data']
-    resultType.value = response.data['type']
-    calculated.value = true
-    results.value = true
+    if (response.data['results'] === 'yes'){
+      calculatedResults.value = response.data['data']
+      resultType.value = response.data['type']
+      calculated.value = true
+      results.value = true
+    }else{
+      formErrorMessage.value = response.data['data']
+      clearMessage()
+    }
     loading.value = false
     testLoading.value = false
   })
   .catch(e =>{
     loading.value = false
     testLoading.value = false
-    formErrorMessage.value = "Something went wrong. Please try again later"
+    formErrorMessage.value = "Something went wrong. Check you internet connection and try again"
     clearMessage()
   })
 
@@ -329,7 +328,7 @@ const toggleResult = (value)=>{
 const clearMessage = ()=>{
   setTimeout(()=>{
     formErrorMessage.value = ''
-  }, 10000)
+  }, 15000)
 }
 
   
@@ -353,7 +352,6 @@ const clearData = ()=>{
     hazenLoops.value = []
     typeSelected.value = null
     equationType.value = null
-    maxIter.value = null
     results.value = false
     errorTolerance.value = null
     resultType.value = null
@@ -377,24 +375,26 @@ const clearData = ()=>{
         </v-card>
       </div>
       <v-card class="card">
+
         <div class="error-message-container">
+          <p v-if="!formErrorMessage" class="error-message">NB: Ensure consistent units</p>
           <p v-if="formErrorMessage" class="error-message">{{formErrorMessage}}</p>
         </div>
         <div class="input-container" v-if="!results">
-          <v-select :items="typeOptions" v-model="typeSelected" item-title="type" item-values="value" class="select" persistent-hint hint="select the type of data you want to use" clearable density="compact">DATA TYPE</v-select>
-          <v-select :items="equationTypeOptions" v-model="equationType" item-title="option" item-values="value" class="select" persistent-hint hint="select the equation you want to use for the calculation" clearable density="compact">EQUATION</v-select>
-          <v-btn v-if="typeSelected && equationType" @click="addLoop()" class="mt-5 mb-5" color="blue" size="small">ADD LOOP</v-btn>
+          <v-select :items="equationTypeOptions" v-model="equationType" item-title="option" item-values="value" class="select" persistent-hint hint="Select the equation you want to use for the calculation" density="compact" variant="outlined">EQUATION</v-select>
+          <v-select :items="typeOptions" v-model="typeSelected" item-title="type" item-values="value" class="select" persistent-hint hint="Select the type of data you want to use" density="compact" variant="outlined">DATA TYPE</v-select>
+          <v-btn v-if="typeSelected && equationType" @click="addLoop()" class="mt-5 mb-5" color="green" size="small">ADD LOOP</v-btn>
           <div v-if="typeSelected == 'k' " class="loop-container flex-all">
             <div class="loop-wrapper" v-for="(loop, index) in kLoops" :key="index">
                 <div class="w-100 loop-name">
                   <v-btn class="mr-5 mb-2" @click="removeLoop(index)" color="red" size="small">remove loop</v-btn>
-                  <v-text-field class="text-field" style="max-width: 300px" label="LOOP NAME" v-model="loop['name']" density="compact" clearable hint="Enter the name of the loop"/>
+                  <v-text-field class="text-field" style="max-width: 300px" label="LOOP NAME" v-model="loop['name']" density="compact" hint="Enter the name of the loop" variant="outlined"/>
                 </div>
                 <v-btn class="mb-2" @click="addPipe(index)" color="blue" size="small">ADD PIPE</v-btn>
                 <div class="pipe-wrapper" v-for="(pipe, i) in loop['props']" :key="i">
-                  <v-text-field class="text-field" v-model="pipe['pipe']" label="PIPE NAME" clearable hint="Enter the name of the pipe" density="compact"/>
-                  <v-text-field class="text-field" v-model="pipe['K']" type="number" label="K" hint="Enter the pipe's K value" density="compact" clearable/>
-                  <v-text-field class="text-field" v-model="pipe['Qa']" type="number" label="Qa" hint="Enter the assumed rate of the pipe" density="compact" clearable/>
+                  <v-text-field class="text-field" v-model="pipe['pipe']" label="PIPE NAME" hint="Enter the name of the pipe" density="compact" variant="outlined"/>
+                  <v-text-field class="text-field" v-model="pipe['K']" type="number" label="K" hint="Enter the pipe's K value" density="compact" variant="outlined"/>
+                  <v-text-field class="text-field" v-model="pipe['Qa']" type="number" label="Qa" hint="Enter the assumed rate of the pipe" density="compact" variant="outlined"/>
                   <v-btn class="ml-3 mr-1 mb-2" @click="removePipe(index, i)" color="red" size="small">X</v-btn>
                 </div>
             </div>
@@ -403,38 +403,38 @@ const clearData = ()=>{
             <div class="loop-wrapper" v-for="(loop, index) in darcyLoops" :key="index">
                 <div class="w-100 loop-name">
                   <v-btn class="mr-5 mb-2" @click="removeLoop(index)" color="red" size="small">remove loop</v-btn>
-                  <v-text-field class="text-field" style="max-width: 300px" label="LOOP NAME" v-model="loop['name']" hint="Enter the name of the loop" density="compact" clearable/>
+                  <v-text-field class="text-field" style="max-width: 300px" label="LOOP NAME" v-model="loop['name']" hint="Enter the name of the loop" density="compact" variant="outlined"/>
                 </div>
                 <v-btn class="mt-5 mb-5" @click="addPipe(index)" color="blue" size="small">ADD PIPE</v-btn>
                 <div class="pipe-wrapper" v-for="(pipe, i) in loop['props']" :key="i">
-                  <v-text-field class="text-field" v-model="pipe['pipe']" label="PIPE NAME" hint="Enter the name of the pipe" density="compact" clearable/>
-                  <v-text-field class="text-field" v-model="pipe['length']" type="number" label="LENGTH" hint="Enter the length of the pipe" density="compact" clearable/>
-                  <v-text-field class="text-field" v-model="pipe['diameter']" type="number" label="DIAMETER" hint="Enter the diameter of the pipe" density="compact" clearable/>
-                  <v-text-field class="text-field" v-model="pipe['f']" type="number" label="f" hint="Enter the Darcy friction factor of the pipe" density="compact" clearable/>
-                  <v-text-field class="text-field" v-model="pipe['Qa']" type="number" label="Qa" hint="Enter the assumed rate of the pipe" density="compact" clearable/>
+                  <v-text-field class="text-field" v-model="pipe['pipe']" label="PIPE NAME" hint="Enter the name of the pipe" density="compact" variant="outlined"/>
+                  <v-text-field class="text-field" v-model="pipe['length']" type="number" label="LENGTH" hint="Enter the length of the pipe" density="compact" variant="outlined"/>
+                  <v-text-field class="text-field" v-model="pipe['diameter']" type="number" label="DIAMETER" hint="Enter the diameter of the pipe" density="compact" variant="outlined"/>
+                  <v-text-field class="text-field" v-model="pipe['f']" type="number" label="f" hint="Enter the Darcy friction factor of the pipe" density="compact" variant="outlined"/>
+                  <v-text-field class="text-field" v-model="pipe['Qa']" type="number" label="Qa" hint="Enter the assumed rate of the pipe" density="compact" variant="outlined"/>
                   <v-btn class="ml-3 mr-1 mb-2" @click="removePipe(index, i)" color="red" size="small">X</v-btn>
                 </div>
             </div>
           </div>
+
           <div v-if="typeSelected == 'nk' && equationType == 'hazen' " class="loop-container flex-all">
             <div class="loop-wrapper" v-for="(loop, index) in hazenLoops" :key="index">
                 <div class="w-100 loop-name">
                   <v-btn class="mr-5 mb-2" @click="removeLoop(index)" color="red" size="small">remove loop</v-btn>
-                  <v-text-field class="text-field" style="max-width: 300px" label="LOOP NAME" v-model="loop['name']" hint="Enter the name of the loop" density="compact" clearable/>                
+                  <v-text-field class="text-field" style="max-width: 300px" label="LOOP NAME" v-model="loop['name']" hint="Enter the name of the loop" density="compact" variant="outlined"/>                
                 </div>
                 <v-btn class="mt-3 mb-3" @click="addPipe(index)" color="blue" size="small">ADD PIPE</v-btn>
                 <div class="pipe-wrapper" v-for="(pipe, i) in loop['props']" :key="i">
-                  <v-text-field class="text-field" v-model="pipe['pipe']" label="PIPE NAME" hint="Enter the name of the pipe" density="compact" clearable/>
-                  <v-text-field class="text-field" v-model="pipe['length']" type="number" label="LENGTH" hint="Enter the length of the pipe" density="compact" clearable/>
-                  <v-text-field class="text-field" v-model="pipe['diameter']" type="number" label="DIAMETER" hint="Enter the diameter of the pipe" density="compact" clearable/>
-                  <v-text-field class="text-field" v-model="pipe['C']" type="number" label="C" hint="Enter the Hazen William's coefficient of the pipe" density="compact" clearable/>
-                  <v-text-field class="text-field" v-model="pipe['Qa']" type="number" label="Qa" hint="Enter the assumed rate of the pipe" density="compact" clearable/>
+                  <v-text-field class="text-field" v-model="pipe['pipe']" label="PIPE NAME" hint="Enter the name of the pipe" density="compact" variant="outlined"/>
+                  <v-text-field class="text-field" v-model="pipe['length']" type="number" label="LENGTH" hint="Enter the length of the pipe" density="compact" variant="outlined"/>
+                  <v-text-field class="text-field" v-model="pipe['diameter']" type="number" label="DIAMETER" hint="Enter the diameter of the pipe" density="compact" variant="outlined"/>
+                  <v-text-field class="text-field" v-model="pipe['C']" type="number" label="C" hint="Enter the Hazen William's coefficient of the pipe" density="compact" variant="outlined"/>
+                  <v-text-field class="text-field" v-model="pipe['Qa']" type="number" label="Qa" hint="Enter the assumed rate of the pipe" density="compact" variant="outlined"/>
                   <v-btn class="ml-3 mr-1 mb-2" @click="removePipe(index, i)" color="red" size="small">X</v-btn>
                 </div>
             </div>
           </div>
-          <v-text-field v-if="typeSelected && equationType" class="text-field" v-model="errorTolerance" type="number" label="ERROR TOLERANCE" placeholder="Optional" hint="Enter the allowable error tolerance" density="compact" clearable/>
-          <v-text-field v-if="typeSelected && equationType " class="text-field" v-model="maxIter" type="number" label="MAX ITERATION" placeholder="Optional" hint="Enter the maximum number of iterations" density="compact" clearable/>
+          <v-text-field v-if="typeSelected === 'k' && kLoops.length > 0 || typeSelected === 'nk' && equationType === 'hazen' && hazenLoops.length > 0 || typeSelected === 'nk' && equationType === 'darcy' && darcyLoops.length > 0 " class="text-field mb-10" style="width: 300px" v-model="errorTolerance" type="number" label="ERROR TOLERANCE(OPTIONAL)" placeholder="default: 0.00000008(1e-8)" hint="Enter the allowable error tolerance" density="compact" variant="outlined"/>
         </div>
         
         <!-- Result Overlay -->
@@ -482,13 +482,15 @@ const clearData = ()=>{
       </div>
       
         <!-- Submit Buttons -->
-      <div class="btn-container">
-        <v-btn v-if="!calculated || !calculated " @click="pipeNetwork('calculate')" :disabled="checkInput || testLoading" :loading="loading" size="small" class="submit-btn" color="green">CALCULATE</v-btn>
-        <v-btn v-if="!calculated " @click="pipeNetwork('test')" :loading="testLoading" :disabled="loading" size="small" class="submit-btn" color="black">TEST</v-btn>
-        <v-btn v-if="calculated && !results || calculated && !results" @click="pipeNetwork('recalculate')" :disabled="checkInput || testLoading" :loading="loading" size="small" class="submit-btn" color="green">RECALCULATE</v-btn>
-        <v-btn v-if="calculated && results" @click="toggleResult(false)" :disabled="loading || testLoading" size="small" color="blue" class="submit-btn">HIDE RESULT</v-btn>
-        <v-btn v-if="calculated && !results" @click="toggleResult(true)" :disabled="loading || testLoading" size="small" color="blue" class="submit-btn">SHOW RESULT</v-btn>
-        <v-btn @click="clearOverlay('show')" :disabled="loading || testLoading" color="red" size="small" class="submit-btn clear">CLEAR</v-btn>
+      <div class="btn-container-wrapper">
+        <div class="btn-container">
+          <v-btn v-if="!calculated || !calculated " @click="pipeNetwork('calculate')" :disabled="checkInput || testLoading" :loading="loading" size="small" class="submit-btn" color="green">CALCULATE</v-btn>
+          <v-btn v-if="!calculated " @click="pipeNetwork('test')" :loading="testLoading" :disabled="loading" size="small" class="submit-btn" color="white">TEST</v-btn>
+          <v-btn v-if="calculated && !results || calculated && !results" @click="pipeNetwork('recalculate')" :disabled="checkInput || testLoading" :loading="loading" size="small" class="submit-btn" color="green">RECALCULATE</v-btn>
+          <v-btn v-if="calculated && results" @click="toggleResult(false)" :disabled="loading || testLoading" size="small" color="blue" class="submit-btn">HIDE RESULT</v-btn>
+          <v-btn v-if="calculated && !results" @click="toggleResult(true)" :disabled="loading || testLoading" size="small" color="blue" class="submit-btn">SHOW RESULT</v-btn>
+          <v-btn @click="clearOverlay('show')" :disabled="loading || testLoading" color="red" size="small" class="submit-btn clear">CLEAR</v-btn>
+        </div>
       </div>
     </v-card>
     </div>
@@ -535,13 +537,22 @@ const clearData = ()=>{
   width: fit-content;
 }
 
+.btn-container-wrapper{
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: black;
+  width: 100%;
+  height: 10%;
+}
+
 .btn-container{
   display: flex;
   align-items: center;
   justify-content: space-around;
   width: 100%;
   max-width: 400px;
-  height: 10%;
+  height: 100%;
 }
 
 .select{
@@ -551,7 +562,7 @@ const clearData = ()=>{
 
 .text-field{
   max-height: 50px !important;
-  margin: .5em 0;
+  margin: 1em 0;
   min-width: 150px !important;
 }
 
@@ -559,7 +570,7 @@ const clearData = ()=>{
   font-weight: bold !important;
 }
 .loop-container{
-  width: 100%;
+  width: 90%;
 }
 
 .loop-wrapper{
@@ -567,8 +578,11 @@ const clearData = ()=>{
   align-items: center;
   flex-direction: column;
   width: 100%;
-  border-top: 20px solid green;
-  border-bottom: 20px solid green;
+  margin: 2em;
+  border-top: 20px solid white;
+  border-bottom: 20px solid white;
+  padding: 0 1em;
+  border: 2px solid black;
 }
 
 .loop-name{
@@ -583,9 +597,16 @@ const clearData = ()=>{
   width: 100%;
 }
 
+.error-message-container{
+  width: 100%;
+  text-align: center;
+  background-color: black;
+}
 .error-message{
   color: red;
   margin: 1em 0;
+  font-weight: bold;
+  font-family:Verdana, Geneva, Tahoma, sans-serif;
 }
 
 
